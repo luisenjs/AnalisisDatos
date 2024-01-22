@@ -21,6 +21,12 @@ class URLResolver
     end
   end
 
+  def header(archivo, top_line)
+    CSV.open(archivo, 'w') do |csv|
+      csv << top_line
+    end
+  end
+
   def clear(archivo)
     CSV.open(archivo, 'w') do |csv|
     end
@@ -37,13 +43,15 @@ class GameAchivements
 
   def calcularLogros()
     rawLogros = URLResolver.new(url)
-    rawLogros.clear(nombreJuego + ".csv")
+    archivo_juego = nombreJuego + ".csv"
+    rawLogros.clear(archivo_juego)
+    rawLogros.header(archivo_juego, ["Logros", "Descripcion", "Porcentaje"])
     doc = rawLogros.resolver()
     logros = doc.css("div#mainContents")
     logros.css("div.achieveRow").each do |logro|
       datos = []
       datos << logro.at(".achieveTxt h3").text.strip
-      unless logro.at(".achieveTxt h5").nil?
+      unless logro.at(".achieveTxt h5").text == ""
         datos << logro.at(".achieveTxt h5").text.strip
       else
         datos << "No Description"
