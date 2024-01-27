@@ -70,7 +70,7 @@ class GameAchivements
       rawLogros.saveData(nombreJuego + ".csv", datos, "a")
     end
   end
-  
+
 end
 
 juegos_dicc = {}
