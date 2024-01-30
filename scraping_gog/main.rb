@@ -2,138 +2,174 @@ require 'open-uri'
 require 'nokogiri'
 require 'csv'
 
-#Pregunta 1: ¿Cuáles son los 20 videojuegos con mayor descuento del género de aventura? 
+class Juego
+  attr_accessor :nombre, :precio_inicial, :precio_final, :rating
 
-gogAventura = URI.open('https://www.gog.com/en/games/adventure')
-datos = gogAventura.read
+  def initialize(nombre, precio_inicial, precio_final, rating)
+    @nombre = nombre
+    @precio_inicial = precio_inicial
+    @precio_final = precio_final
+    @rating = rating
+  end
 
-parsed_content = Nokogiri::HTML(datos)
-juegosAventura = parsed_content.css('.ng-star-inserted .paginated-products-grid.grid')
-
-juegos_con_descuento = []  # Array para almacenar los juegos con descuentos
-
-juegosAventura.css('.ng-star-inserted').each do |aventura|
-  nombre = aventura.css('.product-tile__info .product-tile__title').inner_text.strip
-  precioFinal = aventura.css('.ng-star-inserted .final-value').inner_text.strip.gsub(/\$/, '') #para eliminar el $
-  precioInicial = aventura.css('.ng-star-inserted .base-value.ng-star-inserted').inner_text.strip.gsub(/\$/, '') #para eliminar el $
-  nombre = nombre.sub(/^DLC\n \n/, '')
-
-  # Verifica si los datos no están vacíos antes de almacenar en el array
-  if nombre != '' && precioInicial != '' && precioFinal != ''
-    juegos_con_descuento << { nombre: nombre, precioInicial: precioInicial.to_f, precioFinal: precioFinal.to_f }
-
-    puts juegos_con_descuento
+  def descuento
+    ((@precio_inicial - @precio_final) / @precio_inicial * 100).round(2)
   end
 end
 
-# Ordenar el array por el mayor descuento
-juegos_con_descuento.sort_by! { |aventura| (aventura[:precioInicial] - aventura[:precioFinal]) / aventura[:precioInicial] }.reverse!
 
-primeros_20_juegos = juegos_con_descuento.take(20) # Tomar solo los primeros 20 juegos
+class Scraper
+  def initialize(url)
+    @url = url
+  end
 
-CSV.open('juegos_con_descuento.csv', 'w') do |csv|
-  csv << ['Nombre', 'Precio Inicial', 'Precio Final', 'Descuento'] #cabeceras
+  def obtener_datos
+    datos = URI.open(@url).read
+    Nokogiri::HTML(datos)
+  end
 
-  primeros_20_juegos.each do |aventura| #obtengo el descuento
-    descuento = ((aventura[:precioInicial] - aventura[:precioFinal]) / aventura[:precioInicial] * 100).round(2)
-    csv << [aventura[:nombre], aventura[:precioInicial], aventura[:precioFinal], descuento]
+  def obtener_juegos(parsed_content)
+    parsed_content.css('.ng-star-inserted .paginated-products-grid.grid .ng-star-inserted')
+  end
+end
+
+
+# Pregunta 1: ¿Cuáles son los 20 videojuegos con mayor descuento del género de aventura?
+class AnalizadorDescuentos
+  def initialize(juegos)
+    @juegos = juegos
+  end
+
+  def obtener_primeros_20_descuentos
+    juegos_con_descuento = []
+
+    @juegos.each do |aventura|
+      nombre = aventura.css('.product-tile__info .product-tile__title').inner_text.strip
+      precio_final = aventura.css('.ng-star-inserted .final-value').inner_text.strip.gsub(/\$/, '').to_f
+      precio_inicial = aventura.css('.ng-star-inserted .base-value.ng-star-inserted').inner_text.strip.gsub(/\$/, '').to_f
+      nombre = nombre.sub(/^DLC\n \n/, '')
+
+      if nombre != '' && precio_inicial != '' && precio_final != ''
+        juego = Juego.new(nombre, precio_inicial, precio_final, nil)
+        juegos_con_descuento << juego
+      end
+    end
+
+    juegos_con_descuento.sort_by! { |juego| juego.descuento }.reverse!.take(20)
+  end
+end
+
+
+url_aventura = 'https://www.gog.com/en/games/adventure'
+scraper_aventura = Scraper.new(url_aventura)
+parsed_content_aventura = scraper_aventura.obtener_datos
+juegos_aventura = scraper_aventura.obtener_juegos(parsed_content_aventura)
+
+analizador_descuentos = AnalizadorDescuentos.new(juegos_aventura)
+primeros_20_juegos_descuento = analizador_descuentos.obtener_primeros_20_descuentos
+
+CSV.open('juegos_con_descuento.csv', 'w', write_headers: true, headers: ['Nombre', 'Precio Inicial', 'Precio Final', 'Descuento']) do |csv|
+  primeros_20_juegos_descuento.each do |juego|
+    csv << [juego.nombre, juego.precio_inicial, juego.precio_final, juego.descuento]
   end
 end
 
 
 # Pregunta 2: ¿Cuáles son los 15 primeros juegos con los mejores ratings del género de estrategia que estén en idioma inglés?
+class AnalizadorRatings
+  def initialize(juegos)
+    @juegos = juegos
+  end
 
-gogEstrategia = URI.open('https://www.gog.com/en/games/strategy')
-datos = gogEstrategia.read
+  def obtener_mejores_15_ratings
+    juegos_con_rating = []
 
-parsed_content = Nokogiri::HTML(datos)
-juegosEstrategia = parsed_content.css('.ng-star-inserted .paginated-products-grid.grid')
+    @juegos.each do |estrategia|
+      nombre = estrategia.css('.product-tile__info .product-tile__title.ng-star-inserted').inner_text.strip
 
-juegos_con_rating = []
+      if nombre != ''
+        nombre_formateado = nombre.downcase.gsub(/[^a-z0-9]+/, '_') # Reemplazar espacios y dos puntos por guiones bajos
+        url_juego = "https://www.gog.com/en/game/#{nombre_formateado}" # URL para cada juego
 
-juegosEstrategia.css('.ng-star-inserted').each do |estrategia|
-  nombre = estrategia.css('.product-tile__info .product-tile__title.ng-star-inserted').inner_text.strip
+        gog_juego = URI.open(url_juego)
+        datos_juego = gog_juego.read
 
-  if nombre != ''
-    # Reemplazar espacios y dos puntos por guiones bajos
-    nombre_formateado = nombre.downcase.gsub(/[^a-z0-9]+/, '_')
+        parsed_juego = Nokogiri::HTML(datos_juego)
+        rating_text = parsed_juego.css('.rating').inner_text.strip
+        rating = rating_text.match(/\d+\.\d+/) ? rating_text.to_f : 0.0
 
-    # URL para cada juego
-    url_juego = "https://www.gog.com/en/game/#{nombre_formateado}"
+        # Guardar el nombre, precios con null y rating en un hash
+        juego = Juego.new(nombre, nil, nil, rating)
+        juegos_con_rating << juego
+      end
+    end
 
-    # Obtener el rating del juego
-    gog_juego = URI.open(url_juego)
-    datos_juego = gog_juego.read
-
-    parsed_juego = Nokogiri::HTML(datos_juego)
-    rating_text = parsed_juego.css('.rating').inner_text.strip
-    rating = rating_text.match(/\d+\.\d+/) ? rating_text.to_f : 0.0
-
-    # Guardar el nombre y rating en un hash
-    juegos_con_rating << { nombre: nombre, rating: rating }
+    juegos_con_rating.sort_by! { |juego| -juego.rating }.take(15)
   end
 end
 
-# Ordenar la lista de juegos por rating en orden descendente
-juegos_con_rating.sort_by! { |juego| -juego[:rating] }
+url_estrategia = 'https://www.gog.com/en/games/strategy'
+scraper_estrategia = Scraper.new(url_estrategia)
+parsed_content_estrategia = scraper_estrategia.obtener_datos
+juegos_estrategia = scraper_estrategia.obtener_juegos(parsed_content_estrategia)
 
-# Tomar los primeros 15 juegos
-mejores_15_juegos = juegos_con_rating.take(15)
+analizador_ratings = AnalizadorRatings.new(juegos_estrategia)
+mejores_15_juegos_ratings = analizador_ratings.obtener_mejores_15_ratings
 
-# Guardar los resultados en un archivo CSV
 CSV.open('mejores_juegos.csv', 'w', write_headers: true, headers: ['Juego', 'Rating']) do |csv|
-  mejores_15_juegos.each do |juego|
-    csv << [juego[:nombre], juego[:rating]]
+  mejores_15_juegos_ratings.each do |juego|
+    csv << [juego.nombre, juego.rating]
   end
 end
-
-puts 'Los resultados se han guardado en "mejores_juegos.csv"'
-
 
 
 # Pregunta 3: ¿Cuál es la cantidad de videojuegos de los géneros de action, adventure, shooting, indie, strategy?
 
-generos = ['action', 'adventure', 'shooting', 'indie', 'strategy']
-
-# Array para almacenar los resultados antes de escribirlos en el CSV
-resultados = []
-
-generos.each do |genero|
-  linkGeneros = "https://www.gog.com/en/games/#{genero.downcase}"
-  gogGeneros = URI.open(linkGeneros)
-  datosGeneros = gogGeneros.read
-
-  # Array para guardar los juegos de la pagina para luego contarlos
-  juegosPagina1 = []
-
-  parsed_content = Nokogiri::HTML(datosGeneros)
-  juegos = parsed_content.css('.ng-star-inserted .paginated-products-grid.grid')
-  juegos.css('.ng-star-inserted').each do |juego|
-    nombre = juego.css('.product-tile__info .product-tile__title.ng-star-inserted').inner_text.strip
-
-    if nombre != ''
-      juegosPagina1 << { nombre: nombre }
-    end
+class AnalizadorCantidadJuegos
+  def initialize(genero)
+    @genero = genero
   end
 
-  numJuegosPag1 = juegosPagina1.length
-  puts "Número de juegos en la página 1 para #{genero}: #{numJuegosPag1}"
+  def obtener_cantidad_juegos
+    link_genero = "https://www.gog.com/en/games/#{@genero.downcase}"
+    gog_genero = URI.open(link_genero)
+    datos_genero = gog_genero.read
 
-  #map para extraer y convertir los números de página directamente en un arreglo de enteros
-  numerosPaginasTotales = parsed_content.css('.catalog__display-wrapper.catalog__grid-wrapper .catalog__navigation .small-pagination__item').map(&:text).map(&:to_i)
-  numPaginasTotales = numerosPaginasTotales.max
-  puts "Número total de páginas para #{genero}: #{numPaginasTotales}"
+    juegos_pagina1 = []
 
-  resultado = numJuegosPag1 * numPaginasTotales
-  puts "Resultado para #{genero}: #{resultado}"
+    parsed_content = Nokogiri::HTML(datos_genero)
+    juegos = parsed_content.css('.ng-star-inserted .paginated-products-grid.grid')
+    juegos.css('.ng-star-inserted').each do |juego|
+      nombre = juego.css('.product-tile__info .product-tile__title.ng-star-inserted').inner_text.strip
 
-  # Agrega el resultado al array de resultados
-  resultados << { genero: genero, cantidad: resultado }
-  puts "----------------------------------------"
+      if nombre != ''
+        juegos_pagina1 << { nombre: nombre }
+      end
+    end
+
+    num_juegos_pag1 = juegos_pagina1.length
+
+    # Map para extraer y convertir los números de página directamente en un arreglo de enteros
+    numeros_paginas_totales = parsed_content.css('.catalog__display-wrapper.catalog__grid-wrapper .catalog__navigation .small-pagination__item').map(&:text).map(&:to_i)
+    num_paginas_totales = numeros_paginas_totales.max
+
+    resultado = num_juegos_pag1 * num_paginas_totales
+    { genero: @genero, cantidad: resultado }
+  end
+end
+
+generos = ['action', 'adventure', 'shooting', 'indie', 'strategy']
+resultados_cantidad = []
+generos.each do |genero|
+  analizador_cantidad = AnalizadorCantidadJuegos.new(genero)
+  cantidad_resultado = analizador_cantidad.obtener_cantidad_juegos
+  resultados_cantidad << cantidad_resultado
 end
 
 CSV.open('genero_cantidad.csv', 'w', write_headers: true, headers: ['Genero', 'Cantidad']) do |csv|
-  resultados.each do |resultado|
+  resultados_cantidad.each do |resultado|
     csv << [resultado[:genero], resultado[:cantidad]]
   end
 end
+
+puts 'Los resultados se han guardado en "juegos_con_descuento.csv", "mejores_juegos.csv" y "genero_cantidad.csv"'

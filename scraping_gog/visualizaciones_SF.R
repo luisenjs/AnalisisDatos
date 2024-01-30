@@ -14,7 +14,6 @@ ggplot(juegos_con_descuento, aes(x = descuentos, y = juego)) +
   #geom_bar(stat = "identity", fill = "plum1", color = "black") +
   geom_segment(aes(x =0 , xend =descuentos, y = reorder(juego, descuentos), yend = reorder(juego, descuentos)),color = "plum1", lwd = 2)+
   geom_point(size = 7.5, colour=5) +
-  
   geom_text(aes(label = paste0(Descuento, "%")), size=3) +
   labs(title = "20 videojuegos con mayor descuento del género de aventura",
        x = "Descuento (%)",
@@ -22,12 +21,13 @@ ggplot(juegos_con_descuento, aes(x = descuentos, y = juego)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-#Pregunta 2
 
+library(ggplot2)
+library(readr)
+#Pregunta 2
 mejores_juegos <- read.csv("D:/Escritorio/AnalisisDatos/scraping_gog/mejores_juegos.csv")
 juegos <- mejores_juegos$Juego
 rating <- mejores_juegos$Rating
-library(ggplot2)
 
 ggplot(mejores_juegos, aes(x = juegos, y = rating, fill = juegos)) +
   geom_bar(stat = "identity")
@@ -37,6 +37,7 @@ ggplot(mejores_juegos, aes(x = juegos, y = rating, fill = juegos)) +
 #install.packages("treemapify")
 library(treemapify)
 library(ggplot2)
+library(readr)
 
 genero_cantidad <- read.csv("D:/Escritorio/AnalisisDatos/scraping_gog/genero_cantidad.csv")
 cantidad <- genero_cantidad$Cantidad
