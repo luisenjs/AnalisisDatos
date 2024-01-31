@@ -25,10 +25,9 @@ class URLResolver
     CSV.foreach(archivo, headers: true) do |row|
       if row[0] == data[0]
         return true
-      else
-        return false
       end
     end
+    return false
   end
 
   def header(archivo, top_line)

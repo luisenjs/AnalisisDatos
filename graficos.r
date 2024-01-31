@@ -58,7 +58,7 @@ kable(datos2, format = "html") %>%
 #----------------------------------------------------------------------------------------
 
 
-# Ejemplo de datos
+# Cargar los datos
 datos3 <- read.csv("comparacion.csv")
 
 # Divide la columna y cuenta los elementos
@@ -67,11 +67,13 @@ datos_expandidos <- datos3 %>%
   group_by(Nombre) %>%
   summarize(NumPlataformas = n_distinct(Plataformas), Precio = first(Precio))
 
-datos_expandidos$Precio <- gsub("\\$", "", datos_expandidos$Precio)
+# Extraer la parte numérica del precio y convertir a numérico
+datos_expandidos$Precio <- as.numeric(gsub("\\$| USD", "", datos_expandidos$Precio))
 
-datos_expandidos$Precio <- as.numeric(datos_expandidos$Precio)
-
-# Muestra el resultado
+# Muestra el resultado con el nombre del juego en la leyenda
 parcoord(datos_expandidos[, c("NumPlataformas", "Precio")], col = 2:7, lty = 1)
+
+# Crear una leyenda con el nombre del juego
+legend("topright", legend = datos_expandidos$Nombre, col = 2:7, lty = 1, bty = "n")
 
 View(datos_expandidos)
